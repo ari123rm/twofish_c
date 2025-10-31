@@ -232,6 +232,7 @@ u4byte* set_key(const u4byte key[], const u4byte len)
     return l_key;
 }
 
+/*
 void encrypt(const u4byte pt[4], u4byte ct[4])
 {
     u4byte t0,t1;
@@ -239,7 +240,32 @@ void encrypt(const u4byte pt[4], u4byte ct[4])
     t0=g0_fun(r0); t1=g1_fun(r1);
     ct[0]=t0^r2^l_key[4]; ct[1]=t1^r3^l_key[5]; ct[2]=r0; ct[3]=r1;
 }
+*/
 
+void encrypt(const u4byte pt[4], u4byte ct[4])
+{
+    u4byte t0, t1, F0, F1;
+    u4byte r0 = pt[0] ^ l_key[0];
+    u4byte r1 = pt[1] ^ l_key[1];
+    u4byte r2 = pt[2] ^ l_key[2];
+    u4byte r3 = pt[3] ^ l_key[3];
+
+    // Calcula as funções g
+    t0 = g0_fun(r0);
+    t1 = g1_fun(r1);
+
+    // 🔹 Aplica a PHT
+    F0 = (t0 + t1) & 0xFFFFFFFF;
+    F1 = (t0 + (t1 << 1)) & 0xFFFFFFFF;  // (t0 + 2*t1) mod 2^32
+
+    // 🔹 Mistura com as metades opostas e subchaves
+    ct[0] = F0 ^ r2 ^ l_key[4];
+    ct[1] = F1 ^ r3 ^ l_key[5];
+    ct[2] = r0;
+    ct[3] = r1;
+}
+
+/*
 void decrypt(const u4byte ct[4], u4byte pt[4])
 {
     u4byte t0,t1;
@@ -247,7 +273,37 @@ void decrypt(const u4byte ct[4], u4byte pt[4])
     t0=g0_fun(r0); t1=g1_fun(r1);
     pt[0]=r2^t0^l_key[0]; pt[1]=r3^t1^l_key[1]; pt[2]=r0; pt[3]=r1;
 }
+*/
 
+
+
+
+void decrypt(const u4byte ct[4], u4byte pt[4])
+{
+    u4byte t0, t1;
+    u4byte r0 = ct[2];
+    u4byte r1 = ct[3];
+    u4byte F0, F1;
+    u4byte r2, r3;
+
+    /* Reconstrói t0 e t1 a partir de r0,r1 */
+    t0 = g0_fun(r0);
+    t1 = g1_fun(r1);
+
+    /* Recalculamos F0 e F1 (PHT) */
+    F0 = (t0 + t1) & 0xFFFFFFFF;
+    F1 = (t0 + (t1 << 1)) & 0xFFFFFFFF; /* (t0 + 2*t1) mod 2^32 */
+
+    /* Recupera r2 e r3 usando os ct[0],ct[1] */
+    r2 = F0 ^ ct[0] ^ l_key[4];
+    r3 = F1 ^ ct[1] ^ l_key[5];
+
+    /* Finalmente, reconstrói as palavras de plaintext (removendo whitening) */
+    pt[0] = r0 ^ l_key[0];
+    pt[1] = r1 ^ l_key[1];
+    pt[2] = r2 ^ l_key[2];
+    pt[3] = r3 ^ l_key[3];
+}
 
 uint32_t inverter_u4byte(uint32_t valor){
     return ((valor >> 24) & 0x000000FF) |
@@ -264,9 +320,9 @@ void completar_16bytes(char *str){
         //memset(str +len,' ',espacos_necessarios);
     }    
 }
-
+/*
 int main() {
-    // Chave de exemplo (128 bits -> 4 u4byte)
+				// Chave de exemplo (128 bits -> 4 u4byte)
     u4byte key[4] = {0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210};
     u4byte* round_keys = set_key(key, 4);
 
@@ -279,6 +335,9 @@ int main() {
         "Ola amigos"  // 16 bytes
     };
 
+
+		char frase[8193];
+		memset(frase,'a',8193);
     for(int f=0; f<5; f++) {
         size_t len = strlen(frases[f]);
         
@@ -322,3 +381,55 @@ int i;
 
     return 0;
 }
+
+*/
+
+
+int main() {
+    // 🔹 Chave de exemplo (128 bits)
+    u4byte key[4] = {0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210};
+    set_key(key, 4);
+
+    // 🔹 Texto de 8 KB (8192 bytes)
+    char frase[8193];
+    memset(frase, 'A', 8192);
+    frase[8192] = '\0';
+
+    // 🔹 Buffers estáticos (sem malloc)
+    unsigned char criptografado[8192];
+    unsigned char decriptografado[8192];
+
+    printf("Texto original (primeiros 64 chars): %.1000s\n\n", frase);
+
+    // 🔹 Processa o texto em blocos de 16 bytes
+    const size_t blocos = 8192 / 16;
+
+    for (size_t i = 0; i < blocos; i++) {
+        u4byte pt[4] = {0};
+        u4byte ct[4] = {0};
+        u4byte dt[4] = {0};
+
+        // Copia 16 bytes do texto para o bloco
+        memcpy(pt, frase + (i * 16), 16);
+
+        // Cifra o bloco
+        encrypt(pt, ct);
+        memcpy(criptografado + (i * 16), ct, 16);
+
+        // Decifra o bloco
+        decrypt(ct, dt);
+        memcpy(decriptografado + (i * 16), dt, 16);
+    }
+
+    printf("Cifragem concluída!\n\n");
+
+    printf("Primeiros 64 bytes cifrados (hex):\n");
+    for (int i = 0; i < 1000; i++)
+        printf("%02x ", criptografado[i]);
+    printf("\n\n");
+
+    printf("Texto decifrado (primeiros 64 chars): %.1000s\n", decriptografado);
+
+    return 0;
+}
+
