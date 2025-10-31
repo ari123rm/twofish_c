@@ -234,15 +234,14 @@ u4byte* set_key(const u4byte key[], const u4byte len)
     return l_key;
 }
 
-/*
-void encrypt(const u4byte pt[4], u4byte ct[4])
-{
-    u4byte t0,t1;
-    u4byte r0=pt[0]^l_key[0], r1=pt[1]^l_key[1], r2=pt[2]^l_key[2], r3=pt[3]^l_key[3];
-    t0=g0_fun(r0); t1=g1_fun(r1);
-    ct[0]=t0^r2^l_key[4]; ct[1]=t1^r3^l_key[5]; ct[2]=r0; ct[3]=r1;
+static inline u4byte rol(u4byte val, int n) {
+    return (val << n) | (val >> (32 - n));
 }
-*/
+
+static inline u4byte ror(u4byte val, int n) {
+    return (val >> n) | (val << (32 - n));
+}
+
 
 void encrypt(const u4byte pt[4], u4byte ct[4])
 {
@@ -253,12 +252,20 @@ void encrypt(const u4byte pt[4], u4byte ct[4])
     u4byte r3 = pt[3] ^ l_key[3];
 
     // Calcula as funções g
+
+    r1 = ror(r1, 1); // exemplo: rotaciona t1 1 bits à direita
+
     t0 = g0_fun(r0);
     t1 = g1_fun(r1);
 
+    // 🔹 Adiciona rotações na Feistel
     // 🔹 Aplica a PHT
     F0 = (t0 + t1) & 0xFFFFFFFF;
     F1 = (t0 + (t1 << 1)) & 0xFFFFFFFF;  // (t0 + 2*t1) mod 2^32
+
+    r2 = rol(r2, 1); // exemplo: rotaciona t0 1 bits à esquerd
+    r3 = ror(r3, 1); // exemplo: rotaciona t1 1 bits à direita
+
 
     // 🔹 Mistura com as metades opostas e subchaves
     ct[0] = F0 ^ r2 ^ l_key[4];
@@ -266,47 +273,6 @@ void encrypt(const u4byte pt[4], u4byte ct[4])
     ct[2] = r0;
     ct[3] = r1;
 }
-
-/*
-void decrypt(const u4byte ct[4], u4byte pt[4])
-{
-    u4byte t0,t1;
-    u4byte r0=ct[2], r1=ct[3], r2=ct[0]^l_key[4], r3=ct[1]^l_key[5];
-    t0=g0_fun(r0); t1=g1_fun(r1);
-    pt[0]=r2^t0^l_key[0]; pt[1]=r3^t1^l_key[1]; pt[2]=r0; pt[3]=r1;
-}
-*/
-
-
-
-
-void decrypt(const u4byte ct[4], u4byte pt[4])
-{
-    u4byte t0, t1;
-    u4byte r0 = ct[2];
-    u4byte r1 = ct[3];
-    u4byte F0, F1;
-    u4byte r2, r3;
-
-    /* Reconstrói t0 e t1 a partir de r0,r1 */
-    t0 = g0_fun(r0);
-    t1 = g1_fun(r1);
-
-    /* Recalculamos F0 e F1 (PHT) */
-    F0 = (t0 + t1) & 0xFFFFFFFF;
-    F1 = (t0 + (t1 << 1)) & 0xFFFFFFFF; /* (t0 + 2*t1) mod 2^32 */
-
-    /* Recupera r2 e r3 usando os ct[0],ct[1] */
-    r2 = F0 ^ ct[0] ^ l_key[4];
-    r3 = F1 ^ ct[1] ^ l_key[5];
-
-    /* Finalmente, reconstrói as palavras de plaintext (removendo whitening) */
-    pt[0] = r0 ^ l_key[0];
-    pt[1] = r1 ^ l_key[1];
-    pt[2] = r2 ^ l_key[2];
-    pt[3] = r3 ^ l_key[3];
-}
-
 uint32_t inverter_u4byte(uint32_t valor){
     return ((valor >> 24) & 0x000000FF) |
             ((valor >> 8) & 0x0000FF00) |
@@ -322,70 +288,6 @@ void completar_16bytes(char *str){
         //memset(str +len,' ',espacos_necessarios);
     }    
 }
-/*
-int main() {
-				// Chave de exemplo (128 bits -> 4 u4byte)
-    u4byte key[4] = {0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210};
-    u4byte* round_keys = set_key(key, 4);
-
-    // Duas frases
-    char* frases[] = {
-        "Responsabilidade",  // 16 bytes
-        "Sustentabilidade",
-        "Ariel e JMarcelo",
-        "Boa tarde",
-        "Ola amigos"  // 16 bytes
-    };
-
-
-		char frase[8193];
-		memset(frase,'a',8193);
-    for(int f=0; f<5; f++) {
-        size_t len = strlen(frases[f]);
-        
-        char aux[16]={0};
-        strcpy(aux,frases[f]);
-        //completar_16bytes(frases[f]);
-        // Prepara blocos de 4 u4byte
-        u4byte pt[4] = {0};
-        memcpy(pt, aux, 16);
-
-        u4byte ct[4];
-int i;
-        for(i=0;i<16;i++){
-        encrypt(pt, ct);
-        }
-        printf("Frase original: %s\n", frases[f]);
-        printf("Frase criptografada (hex): ");
-        for(int i=0;i<4;i++)
-            printf("%08x ", ct[i]);
-        printf("\n");
-
-        printf("Chave utilizada: ");
-        for(int i=0;i<4;i++)
-            printf("%08x ", round_keys[i]);
-        printf("\n");
-        
-        u4byte dt[4];
-        for(i=0;i<16;i++){
-        decrypt(ct,dt);
-        }
-        printf("Frase descriptografada (hex): ");
-        for(int i=0;i<4;i++){
-            printf("%08x ", inverter_u4byte(pt[i]));
-        
-        }
-            
-        printf("\n\n");
-        
-        
-    }
-
-    return 0;
-}
-
-*/
-
 
 int main() {
     // 🔹 Chave de exemplo (128 bits)

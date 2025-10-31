@@ -232,6 +232,17 @@ u4byte* set_key(const u4byte key[], const u4byte len)
     return l_key;
 }
 
+
+static inline u4byte rol(u4byte val, int n) {
+    return (val << n) | (val >> (32 - n));
+}
+
+static inline u4byte ror(u4byte val, int n) {
+    return (val >> n) | (val << (32 - n));
+}
+
+
+/*
 void decrypt(const u4byte ct[4], u4byte pt[4])
 {
     u4byte t0, t1;
@@ -240,23 +251,65 @@ void decrypt(const u4byte ct[4], u4byte pt[4])
     u4byte F0, F1;
     u4byte r2, r3;
 
-    /* Reconstrói t0 e t1 a partir de r0,r1 */
+
+    r1 = rol(r1, 1); // exemplo: rotaciona t1 5 bits à direita
+
     t0 = g0_fun(r0);
     t1 = g1_fun(r1);
 
-    /* Recalculamos F0 e F1 (PHT) */
     F0 = (t0 + t1) & 0xFFFFFFFF;
-    F1 = (t0 + (t1 << 1)) & 0xFFFFFFFF; /* (t0 + 2*t1) mod 2^32 */
+    F1 = (t0 + (t1 << 1)) & 0xFFFFFFFF; 
 
-    /* Recupera r2 e r3 usando os ct[0],ct[1] */
+    r2 = ror(r2, 1); // exemplo: rotaciona t0 3 bits à esquerd
+    r3 = rol(r3, 1); // exemplo: rotaciona t1 5 bits à direita
+
+
+
     r2 = F0 ^ ct[0] ^ l_key[4];
     r3 = F1 ^ ct[1] ^ l_key[5];
 
-    /* Finalmente, reconstrói as palavras de plaintext (removendo whitening) */
     pt[0] = r0 ^ l_key[0];
     pt[1] = r1 ^ l_key[1];
     pt[2] = r2 ^ l_key[2];
     pt[3] = r3 ^ l_key[3];
+}
+*/
+
+void decrypt(const u4byte ct[4], u4byte pt[4]) {
+    u4byte t0, t1, F0, F1;
+    u4byte r0, r1_rot, r1_plain, r2_rot, r3_rot, r2_plain, r3_plain;
+
+    /* Recupera r0 e o r1 armazenado em ct (note: ct[3] guarda r1 já rotacionado no encrypt) */
+    r0 = ct[2];         // no encrypt ct[2] = r0 (sem rotação)
+    r1_rot = ct[3];     // no encrypt ct[3] = r1 após r1 = ror(r1,1)
+
+    /* Calcula t0 e t1 usando exatamente as mesmas entradas que o encrypt usou:
+       encrypt usou g0_fun(r0) e g1_fun(r1_rot) (r1 já rotacionado). */
+    t0 = g0_fun(r0);
+    t1 = g1_fun(r1_rot);
+
+    /* Recalcula a PHT (F0, F1) */
+    F0 = (t0 + t1) & 0xFFFFFFFF;
+    F1 = (t0 + (t1 << 1)) & 0xFFFFFFFF;
+
+    /* Recupera os valores rotacionados de r2 e r3 que foram misturados em ct[0]/ct[1] */
+    r2_rot = ct[0] ^ F0 ^ l_key[4];   // ct[0] = F0 ^ r2_rot ^ l_key[4]
+    r3_rot = ct[1] ^ F1 ^ l_key[5];   // ct[1] = F1 ^ r3_rot ^ l_key[5]
+
+    /* Desfaz as rotações que encrypt aplicou:
+       encrypt fez: r2 = rol(r2,1)  --> desfazer com ror(r2_rot,1)
+                    r3 = ror(r3,1)  --> desfazer com rol(r3_rot,1)
+       Além disso, o r1 que estava em ct[3] é r1_rot = ror(original_r1,1),
+       então para obter o original fazemos r1_plain = rol(r1_rot,1) antes do whitening. */
+    r2_plain = ror(r2_rot, 1);
+    r3_plain = rol(r3_rot, 1);
+    r1_plain = rol(r1_rot, 1);
+
+    /* Remove o whitening (subchaves iniciais) para obter o plaintext */
+    pt[0] = r0 ^ l_key[0];
+    pt[1] = r1_plain ^ l_key[1];
+    pt[2] = r2_plain ^ l_key[2];
+    pt[3] = r3_plain ^ l_key[3];
 }
 
 uint32_t inverter_u4byte(uint32_t valor){
@@ -274,37 +327,6 @@ void completar_16bytes(char *str){
         //memset(str +len,' ',espacos_necessarios);
     }    
 }
-/*
-int main() {
-    // 🔹 Chave de exemplo (128 bits)
-    u4byte key[4] = {0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210};
-    set_key(key, 4);
-
-    // 🔹 Texto de 8 KB (8192 bytes)
-		char conteudo[8193];
-	
-
-    // 🔹 Buffers estáticos (sem malloc)
-    unsigned char decriptografado[8192];
-
-		FILE *arquivo;
-		arquivo=fopen("cifra.txt","r");
-		fread(conteudo, 1, 8192, arquivo);
-    fclose(arquivo);
-
-
-
-//    printf("Texto original (primeiros 64 chars): %.1000s\n\n", frase);
-
-
-   printf("Texto decifrado (primeiros 64 chars): %.8195s\n",conteudo);
-
-    return 0;
-}
-
-*/
-
-
 int main() {
     u4byte key[4] = {0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210};
     set_key(key, 4);
