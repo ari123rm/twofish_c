@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define Q_TABLES
 #define M_TABLE
@@ -10,6 +11,7 @@
 
 static char *alg_name[] = { "twofish", "twofish.c", "twofish" };
 char **cipher_name(void) { return alg_name; }
+char alfabeto[26]="abcdefghijklmnopqrstuvwxyz";
 
 u4byte k_len;
 u4byte l_key[40];
@@ -388,11 +390,15 @@ int i;
 int main() {
     // 🔹 Chave de exemplo (128 bits)
     u4byte key[4] = {0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210};
+    char frase[8192];
     set_key(key, 4);
+		srand(time(NULL));
 
     // 🔹 Texto de 8 KB (8192 bytes)
-    char frase[8192];
-    memset(frase, 'A', 8192);
+		for(int j=0;j<8192;j++){
+			int index=rand()%26;	
+    	memset(frase+j,alfabeto[index],1);
+		}
 
 		
 		FILE *entrada;
