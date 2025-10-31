@@ -232,52 +232,6 @@ u4byte* set_key(const u4byte key[], const u4byte len)
     return l_key;
 }
 
-/*
-void encrypt(const u4byte pt[4], u4byte ct[4])
-{
-    u4byte t0,t1;
-    u4byte r0=pt[0]^l_key[0], r1=pt[1]^l_key[1], r2=pt[2]^l_key[2], r3=pt[3]^l_key[3];
-    t0=g0_fun(r0); t1=g1_fun(r1);
-    ct[0]=t0^r2^l_key[4]; ct[1]=t1^r3^l_key[5]; ct[2]=r0; ct[3]=r1;
-}
-*/
-
-void encrypt(const u4byte pt[4], u4byte ct[4])
-{
-    u4byte t0, t1, F0, F1;
-    u4byte r0 = pt[0] ^ l_key[0];
-    u4byte r1 = pt[1] ^ l_key[1];
-    u4byte r2 = pt[2] ^ l_key[2];
-    u4byte r3 = pt[3] ^ l_key[3];
-
-    // Calcula as funções g
-    t0 = g0_fun(r0);
-    t1 = g1_fun(r1);
-
-    // 🔹 Aplica a PHT
-    F0 = (t0 + t1) & 0xFFFFFFFF;
-    F1 = (t0 + (t1 << 1)) & 0xFFFFFFFF;  // (t0 + 2*t1) mod 2^32
-
-    // 🔹 Mistura com as metades opostas e subchaves
-    ct[0] = F0 ^ r2 ^ l_key[4];
-    ct[1] = F1 ^ r3 ^ l_key[5];
-    ct[2] = r0;
-    ct[3] = r1;
-}
-
-/*
-void decrypt(const u4byte ct[4], u4byte pt[4])
-{
-    u4byte t0,t1;
-    u4byte r0=ct[2], r1=ct[3], r2=ct[0]^l_key[4], r3=ct[1]^l_key[5];
-    t0=g0_fun(r0); t1=g1_fun(r1);
-    pt[0]=r2^t0^l_key[0]; pt[1]=r3^t1^l_key[1]; pt[2]=r0; pt[3]=r1;
-}
-*/
-
-
-
-
 void decrypt(const u4byte ct[4], u4byte pt[4])
 {
     u4byte t0, t1;
@@ -322,62 +276,28 @@ void completar_16bytes(char *str){
 }
 /*
 int main() {
-				// Chave de exemplo (128 bits -> 4 u4byte)
+    // 🔹 Chave de exemplo (128 bits)
     u4byte key[4] = {0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210};
-    u4byte* round_keys = set_key(key, 4);
+    set_key(key, 4);
 
-    // Duas frases
-    char* frases[] = {
-        "Responsabilidade",  // 16 bytes
-        "Sustentabilidade",
-        "Ariel e JMarcelo",
-        "Boa tarde",
-        "Ola amigos"  // 16 bytes
-    };
+    // 🔹 Texto de 8 KB (8192 bytes)
+		char conteudo[8193];
+	
+
+    // 🔹 Buffers estáticos (sem malloc)
+    unsigned char decriptografado[8192];
+
+		FILE *arquivo;
+		arquivo=fopen("cifra.txt","r");
+		fread(conteudo, 1, 8192, arquivo);
+    fclose(arquivo);
 
 
-		char frase[8193];
-		memset(frase,'a',8193);
-    for(int f=0; f<5; f++) {
-        size_t len = strlen(frases[f]);
-        
-        char aux[16]={0};
-        strcpy(aux,frases[f]);
-        //completar_16bytes(frases[f]);
-        // Prepara blocos de 4 u4byte
-        u4byte pt[4] = {0};
-        memcpy(pt, aux, 16);
 
-        u4byte ct[4];
-int i;
-        for(i=0;i<16;i++){
-        encrypt(pt, ct);
-        }
-        printf("Frase original: %s\n", frases[f]);
-        printf("Frase criptografada (hex): ");
-        for(int i=0;i<4;i++)
-            printf("%08x ", ct[i]);
-        printf("\n");
+//    printf("Texto original (primeiros 64 chars): %.1000s\n\n", frase);
 
-        printf("Chave utilizada: ");
-        for(int i=0;i<4;i++)
-            printf("%08x ", round_keys[i]);
-        printf("\n");
-        
-        u4byte dt[4];
-        for(i=0;i<16;i++){
-        decrypt(ct,dt);
-        }
-        printf("Frase descriptografada (hex): ");
-        for(int i=0;i<4;i++){
-            printf("%08x ", inverter_u4byte(pt[i]));
-        
-        }
-            
-        printf("\n\n");
-        
-        
-    }
+
+   printf("Texto decifrado (primeiros 64 chars): %.8195s\n",conteudo);
 
     return 0;
 }
@@ -386,73 +306,58 @@ int i;
 
 
 int main() {
-    // 🔹 Chave de exemplo (128 bits)
     u4byte key[4] = {0x01234567, 0x89abcdef, 0xfedcba98, 0x76543210};
     set_key(key, 4);
 
-    // 🔹 Texto de 8 KB (8192 bytes)
-    char frase[8193];
-    memset(frase, 'A', 8192);
-    frase[8192] = '\0';
+    char conteudo[8192];
+    char plano[8193];
+    unsigned char decriptografado[8193];
 
-		
-		FILE *entrada;
+    FILE *arquivo = fopen("cifra.txt", "rb"); // ler como binário
+    fread(conteudo, 1, 8192, arquivo);
+    fclose(arquivo);
 
-		entrada=fopen("entrada.txt","w");
-
-
-		fwrite(frase, 1, 8192, entrada); // escreve 8192 bytes exatamente
-		fclose(entrada);
-
-
-
-    // 🔹 Buffers estáticos (sem malloc)
-    unsigned char criptografado[8192];
-
-    printf("Texto original (primeiros 64 chars): %.1000s\n\n", frase);
-
-    // 🔹 Processa o texto em blocos de 16 bytes
     const size_t blocos = 8192 / 16;
 
     for (size_t i = 0; i < blocos; i++) {
-        u4byte pt[4] = {0};
         u4byte ct[4] = {0};
-        u4byte dt[4] = {0};
+        u4byte pt[4] = {0};
 
-        // Copia 16 bytes do texto para o bloco
-        memcpy(pt, frase + (i * 16), 16);
+        // Copia 16 bytes do conteúdo para o bloco ct
+        memcpy(ct, conteudo + (i * 16), 16);
 
-        // Cifra o bloco
-        encrypt(pt, ct);
-        memcpy(criptografado + (i * 16), ct, 16);
-		
-				FILE *arquivo;
+        // Descriptografa
+        decrypt(ct, pt);
 
-				arquivo=fopen("cifra.txt","w");
-
-
-				fwrite(criptografado, 1, 8192, arquivo); // escreve 8192 bytes exatamente
-				fclose(arquivo);
-
-				
-/*
-        // Decifra o bloco
-        decrypt(ct, dt);
-        memcpy(decriptografado + (i * 16), dt, 16);
+        // Copia o bloco descriptografado para o buffer final
+        memcpy(decriptografado + (i * 16), pt, 16);
     }
+		decriptografado[8192]='\0';
 
-    printf("Cifragem concluída!\n\n");
+    // Agora decriptografado[] tem todo o texto original
+    // Agora decriptografado[] tem todo o texto original
+    printf("Texto decifrado (primeiros 128 chars): %.8192s\n", conteudo);
+    printf("Texto decifrado (primeiros 128 chars): %.8192s\n", decriptografado);
 
-    printf("Primeiros 64 bytes cifrados (hex):\n");
-    for (int i = 0; i < 1000; i++)
-        printf("%02x ", criptografado[i]);
-    printf("\n\n");
+    FILE *entrada = fopen("entrada.txt", "rb"); // ler como binário
+    fread(plano, 1, 8192, entrada);
+    fclose(entrada);
+		plano[8192]='\0';
 
-    printf("Texto decifrado (primeiros 64 chars): %.1000s\n", decriptografado);
+    printf("Texto plano (primeiros 128 chars): %.8192s\n", plano);
+/*
+		int x=0;	
+		for(x=0;*(plano+x)==*(decriptografado+x) || (*(plano+x)!='\0' && *(decriptografado+x)!='\0');x++);
+
+		if(*(plano+x)=='\0' && *(decriptografado+x)=='\0')
+			printf("sao ignais \n");
+*/
+
+if (strcmp(plano, decriptografado) == 0)
+    printf("sao iguais\n");
+else
+    printf("sao diferentes\n");
 
     return 0;
-
-*/
-}
 }
 
