@@ -310,8 +310,8 @@ int main() {
     set_key(key, 4);
 
     char conteudo[8192];
-    char plano[8193];
-    unsigned char decriptografado[8193];
+    char plano[8192];
+    unsigned char decriptografado[8192];
 
     FILE *arquivo = fopen("cifra.txt", "rb"); // ler como binário
     fread(conteudo, 1, 8192, arquivo);
@@ -332,7 +332,6 @@ int main() {
         // Copia o bloco descriptografado para o buffer final
         memcpy(decriptografado + (i * 16), pt, 16);
     }
-		decriptografado[8192]='\0';
 
     // Agora decriptografado[] tem todo o texto original
     // Agora decriptografado[] tem todo o texto original
@@ -342,18 +341,10 @@ int main() {
     FILE *entrada = fopen("entrada.txt", "rb"); // ler como binário
     fread(plano, 1, 8192, entrada);
     fclose(entrada);
-		plano[8192]='\0';
 
     printf("Texto plano (primeiros 128 chars): %.8192s\n", plano);
-/*
-		int x=0;	
-		for(x=0;*(plano+x)==*(decriptografado+x) || (*(plano+x)!='\0' && *(decriptografado+x)!='\0');x++);
 
-		if(*(plano+x)=='\0' && *(decriptografado+x)=='\0')
-			printf("sao ignais \n");
-*/
-
-if (strcmp(plano, decriptografado) == 0)
+if (memcmp(plano, decriptografado,8192) == 0)
     printf("sao iguais\n");
 else
     printf("sao diferentes\n");

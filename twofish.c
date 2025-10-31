@@ -391,9 +391,8 @@ int main() {
     set_key(key, 4);
 
     // 🔹 Texto de 8 KB (8192 bytes)
-    char frase[8193];
+    char frase[8192];
     memset(frase, 'A', 8192);
-    frase[8192] = '\0';
 
 		
 		FILE *entrada;
@@ -425,6 +424,8 @@ int main() {
         // Cifra o bloco
         encrypt(pt, ct);
         memcpy(criptografado + (i * 16), ct, 16);
+				
+	}
 		
 				FILE *arquivo;
 
@@ -434,25 +435,6 @@ int main() {
 				fwrite(criptografado, 1, 8192, arquivo); // escreve 8192 bytes exatamente
 				fclose(arquivo);
 
-				
-/*
-        // Decifra o bloco
-        decrypt(ct, dt);
-        memcpy(decriptografado + (i * 16), dt, 16);
-    }
 
-    printf("Cifragem concluída!\n\n");
-
-    printf("Primeiros 64 bytes cifrados (hex):\n");
-    for (int i = 0; i < 1000; i++)
-        printf("%02x ", criptografado[i]);
-    printf("\n\n");
-
-    printf("Texto decifrado (primeiros 64 chars): %.1000s\n", decriptografado);
-
-    return 0;
-
-*/
-}
 }
 
